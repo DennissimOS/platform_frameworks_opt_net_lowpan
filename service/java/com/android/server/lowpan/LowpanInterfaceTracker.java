@@ -73,8 +73,6 @@ class LowpanInterfaceTracker extends StateMachine {
     /** The base for LoWPAN message codes */
     static final int BASE = Protocol.BASE_LOWPAN;
 
-    static final int CMD_REGISTER = BASE + 1;
-    static final int CMD_UNREGISTER = BASE + 2;
     static final int CMD_START_NETWORK = BASE + 3;
     static final int CMD_STOP_NETWORK = BASE + 4;
     static final int CMD_STATE_CHANGE = BASE + 5;
@@ -89,7 +87,7 @@ class LowpanInterfaceTracker extends StateMachine {
     private LowpanInterface mLowpanInterface;
     private NetworkAgent mNetworkAgent;
     private NetworkFactory mNetworkFactory;
-    private final IpManager mIpManager;
+    private IpManager mIpManager;
     private final IpManager.Callback mIpManagerCallback = new IpManagerCallback();
 
     // Instance Variables
@@ -106,7 +104,6 @@ class LowpanInterfaceTracker extends StateMachine {
 
     final DefaultState mDefaultState = new DefaultState();
     final NormalState mNormalState = new NormalState();
-    final InitState mInitState = new InitState();
     final OfflineState mOfflineState = new OfflineState();
     final CommissioningState mCommissioningState = new CommissioningState();
     final AttachingState mAttachingState = new AttachingState();
@@ -154,30 +151,6 @@ class LowpanInterfaceTracker extends StateMachine {
 
     // State Definitions
 
-    class InitState extends State {
-        @Override
-        public void enter() {}
-
-        @Override
-        public boolean processMessage(Message message) {
-            switch (message.what) {
-                case CMD_REGISTER:
-                    if (DBG) {
-                        Log.i(TAG, "CMD_REGISTER");
-                    }
-                    transitionTo(mDefaultState);
-                    break;
-
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-
-        @Override
-        public void exit() {}
-    }
-
     class DefaultState extends State {
         @Override
         public void enter() {
@@ -200,21 +173,18 @@ class LowpanInterfaceTracker extends StateMachine {
             boolean retValue = NOT_HANDLED;
 
             switch (message.what) {
-                case CMD_UNREGISTER:
-                    transitionTo(mInitState);
-                    retValue = HANDLED;
-                    break;
-
                 case CMD_START_NETWORK:
                     if (DBG) {
                         Log.i(TAG, "CMD_START_NETWORK");
                     }
+                    // TODO: Call mLowpanInterface.setEnabled(true)?
                     break;
 
                 case CMD_STOP_NETWORK:
                     if (DBG) {
                         Log.i(TAG, "CMD_START_NETWORK");
                     }
+                    // TODO: Call mLowpanInterface.setEnabled(false)?
                     break;
 
                 case CMD_STATE_CHANGE:
@@ -225,7 +195,7 @@ class LowpanInterfaceTracker extends StateMachine {
                                     "LowpanInterface changed state from \""
                                             + mState
                                             + "\" to \""
-                                            + message.obj.toString()
+                                            + message.obj
                                             + "\".");
                         }
                         mState = (String) message.obj;
@@ -255,7 +225,6 @@ class LowpanInterfaceTracker extends StateMachine {
 
         @Override
         public void exit() {
-
             mLowpanInterface.unregisterCallback(mLocalLowpanCallback);
         }
     }
@@ -267,15 +236,17 @@ class LowpanInterfaceTracker extends StateMachine {
                 Log.i(TAG, "NormalState.enter()");
             }
 
+            mIpManager = new IpManager(mContext, mInterfaceName, mIpManagerCallback);
+
             if (mHwAddr == null) {
                 byte[] hwAddr = null;
                 try {
                     hwAddr = mLowpanInterface.getService().getMacAddress();
 
                 } catch (RemoteException | ServiceSpecificException x) {
-                    // Don't let misbehavior of an interface service
+                    // Don't let misbehavior of the interface service
                     // crash the system service.
-                    Log.e(TAG, x.toString());
+                    Log.e(TAG, "Call to getMacAddress() failed: " + x);
                     transitionTo(mFaultState);
                 }
 
@@ -313,7 +284,7 @@ class LowpanInterfaceTracker extends StateMachine {
                     break;
 
                 case CMD_PROVISIONING_FAILURE:
-                    Log.i(TAG, "Provisioning Failure: " + message.obj.toString());
+                    Log.i(TAG, "Provisioning Failure: " + message.obj);
                     break;
             }
 
@@ -324,6 +295,11 @@ class LowpanInterfaceTracker extends StateMachine {
         public void exit() {
             shutdownNetworkAgent();
             mNetworkFactory.unregister();
+
+            if (mIpManager != null) {
+                mIpManager.shutdown();
+            }
+            mIpManager = null;
         }
     }
 
@@ -385,17 +361,15 @@ class LowpanInterfaceTracker extends StateMachine {
         public boolean processMessage(Message message) {
             switch (message.what) {
                 case CMD_STATE_CHANGE:
-                    if (!mState.equals(message.obj)) {
-                        if (!LowpanInterface.STATE_ATTACHED.equals(message.obj)) {
-                            return NOT_HANDLED;
-                        }
+                    if (!mState.equals(message.obj)
+                            && !LowpanInterface.STATE_ATTACHED.equals(message.obj)) {
+                        return NOT_HANDLED;
                     }
-                    break;
+                    return HANDLED;
 
                 default:
                     return NOT_HANDLED;
             }
-            return HANDLED;
         }
 
         @Override
@@ -439,7 +413,7 @@ class LowpanInterfaceTracker extends StateMachine {
                 if (x.getCause() instanceof RemoteException) {
                     // Don't let misbehavior of an interface service
                     // crash the system service.
-                    Log.e(TAG, x.toString());
+                    Log.e(TAG, "RuntimeException while populating InitialConfiguration: " + x);
                     transitionTo(mFaultState);
 
                 } else {
@@ -483,7 +457,7 @@ class LowpanInterfaceTracker extends StateMachine {
 
             switch (message.what) {
                 case CMD_PROVISIONING_SUCCESS:
-                    Log.i(TAG, "Provisioning Success: " + message.obj.toString());
+                    Log.i(TAG, "Provisioning Success: " + message.obj);
                     transitionTo(mConnectedState);
                     return HANDLED;
             }
@@ -555,7 +529,6 @@ class LowpanInterfaceTracker extends StateMachine {
         mNetworkCapabilities.setLinkDownstreamBandwidthKbps(100);
 
         // CHECKSTYLE:OFF IndentationCheck
-        addState(mInitState);
         addState(mDefaultState);
         addState(mFaultState, mDefaultState);
         addState(mNormalState, mDefaultState);
@@ -567,7 +540,7 @@ class LowpanInterfaceTracker extends StateMachine {
         addState(mConnectedState, mAttachedState);
         // CHECKSTYLE:ON IndentationCheck
 
-        setInitialState(mInitState);
+        setInitialState(mDefaultState);
 
         mNetworkFactory =
                 new NetworkFactory(looper, context, NETWORK_TYPE, mNetworkCapabilities) {
@@ -581,10 +554,6 @@ class LowpanInterfaceTracker extends StateMachine {
                         LowpanInterfaceTracker.this.sendMessage(CMD_STOP_NETWORK);
                     }
                 };
-
-        mIpManager = new IpManager(mContext, mInterfaceName, mIpManagerCallback);
-
-        start();
 
         if (DBG) {
             Log.i(TAG, "LowpanInterfaceTracker() end");
@@ -625,13 +594,13 @@ class LowpanInterfaceTracker extends StateMachine {
         if (DBG) {
             Log.i(TAG, "register()");
         }
-        sendMessage(CMD_REGISTER);
+        start();
     }
 
     public void unregister() {
         if (DBG) {
             Log.i(TAG, "unregister()");
         }
-        sendMessage(CMD_UNREGISTER);
+        quit();
     }
 }
