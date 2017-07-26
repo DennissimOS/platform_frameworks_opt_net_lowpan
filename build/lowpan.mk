@@ -14,4 +14,5 @@
 # limitations under the License.
 
 include frameworks/opt/net/lowpan/build/lowpan-service.mk
+include frameworks/opt/net/lowpan/build/lowpan-hal-default.mk
 include frameworks/opt/net/lowpan/build/wpantund.mk

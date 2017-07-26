@@ -14,10 +14,5 @@
 # limitations under the License.
 
 PRODUCT_PACKAGES += \
-    wpantund
+    android.hardware.lowpan@1.0-service
 
-PRODUCT_COPY_FILES += \
-    frameworks/opt/net/lowpan/build/wpantund.rc:system/etc/init/wpantund.rc
-
-PRODUCT_PACKAGES += \
-	lowpan_hdlc_adapter
