@@ -16,6 +16,7 @@
 
 package com.android.server.lowpan;
 
+import android.content.pm.PackageManager;
 import android.content.Context;
 import android.net.lowpan.ILowpanInterface;
 import android.net.lowpan.ILowpanManager;
@@ -46,9 +47,11 @@ public class LowpanServiceImpl extends ILowpanManager.Stub {
     private final Context mContext;
     private final HandlerThread mHandlerThread = new HandlerThread("LowpanServiceThread");
     private final AtomicBoolean mStarted = new AtomicBoolean(false);
+    private final boolean mIsAndroidThings;
 
     public LowpanServiceImpl(Context context) {
         mContext = context;
+        mIsAndroidThings = context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_EMBEDDED);
     }
 
     public Looper getLooper() {
@@ -74,14 +77,29 @@ public class LowpanServiceImpl extends ILowpanManager.Stub {
     }
 
     private void enforceAccessPermission() {
-        mContext.enforceCallingOrSelfPermission(
-                android.Manifest.permission.ACCESS_LOWPAN_STATE, "LowpanService");
+        try {
+            mContext.enforceCallingOrSelfPermission(
+                    android.Manifest.permission.ACCESS_LOWPAN_STATE, "LowpanService");
+        } catch (SecurityException x) {
+            if (!mIsAndroidThings) {
+                throw x;
+            }
+            mContext.enforceCallingOrSelfPermission(
+                    "com.google.android.things.permission.ACCESS_LOWPAN_STATE", "LowpanService");
+        }
     }
 
     private void enforceManagePermission() {
-        // TODO: Change to android.Manifest.permission.MANAGE_lowpanInterfaceS
-        mContext.enforceCallingOrSelfPermission(
-                android.Manifest.permission.CHANGE_LOWPAN_STATE, "LowpanService");
+        try {
+            mContext.enforceCallingOrSelfPermission(
+                    android.Manifest.permission.MANAGE_LOWPAN_INTERFACES, "LowpanService");
+        } catch (SecurityException x) {
+            if (!mIsAndroidThings) {
+                throw x;
+            }
+            mContext.enforceCallingOrSelfPermission(
+                    "com.google.android.things.permission.MANAGE_LOWPAN_INTERFACES", "LowpanService");
+        }
     }
 
     public ILowpanInterface getInterface(String name) {
