@@ -23,8 +23,8 @@ sleep 2
 adb shell killall wpantund 2> /dev/null
 
 # Start wpantund
-echo "+ adb shell wpantund -s 'system:ot-ncp\ 1' -o Config:Daemon:ExternalNetifManagement 1 &"
-adb shell wpantund -s 'system:ot-ncp\ 1' -o Config:Daemon:ExternalNetifManagement 1 &
+echo "+ adb shell wpantund -I wpan5 -s 'system:ot-ncp\ 1' -o Config:Daemon:ExternalNetifManagement 1 &"
+adb shell wpantund -I wpan5 -s 'system:ot-ncp\ 1' -o Config:Daemon:ExternalNetifManagement 1 &
 WPANTUND_PID=$!
 trap "kill -HUP $WPANTUND_PID 2> /dev/null" EXIT INT TERM
 
@@ -33,16 +33,26 @@ sleep 2
 kill -0 $WPANTUND_PID || die "wpantund failed to start"
 sleep 2
 
-echo "+ adb shell lowpanctl status"
-adb shell lowpanctl status || die
-echo "+ adb shell lowpanctl form blahnet"
-adb shell lowpanctl form blahnet || die
-echo "+ adb shell lowpanctl status"
-adb shell lowpanctl status || die
-echo "+ adb shell ifconfig wpan0"
-adb shell ifconfig wpan0 || die
-echo "+ adb shell ip rule"
-adb shell ip rule || die
+echo "+ adb shell lowpanctl -I wpan5 status"
+adb shell lowpanctl -I wpan5 status || die
+echo "+ adb shell lowpanctl -I wpan5 form blahnet"
+adb shell lowpanctl -I wpan5 form blahnet || die
+echo "+ adb shell lowpanctl -I wpan5 status"
+adb shell lowpanctl -I wpan5 status || die
+echo "+ adb shell ifconfig wpan5"
+adb shell ifconfig wpan5 || die
+echo "+ adb shell dumpsys netd"
+adb shell dumpsys netd || die
+echo "+ adb shell ip -6 rule"
+adb shell ip -6 rule || die
+echo "+ adb shell ip -6 route list table wpan5"
+adb shell ip -6 route list table wpan5 || die
+
+if [ "shell" = "$1" ]
+then
+	echo "+ adb shell"
+	adb shell
+fi
 
 echo "Finished form command test."
 
