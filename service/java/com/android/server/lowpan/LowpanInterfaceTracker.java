@@ -177,14 +177,26 @@ class LowpanInterfaceTracker extends StateMachine {
                     if (DBG) {
                         Log.i(TAG, "CMD_START_NETWORK");
                     }
-                    // TODO: Call mLowpanInterface.setEnabled(true)?
+                    try {
+                        mLowpanInterface.setEnabled(true);
+                    } catch (LowpanException | LowpanRuntimeException x) {
+                        Log.e(TAG, "Exception while enabling: " + x);
+                        transitionTo(mFaultState);
+                        return HANDLED;
+                    }
                     break;
 
                 case CMD_STOP_NETWORK:
                     if (DBG) {
-                        Log.i(TAG, "CMD_START_NETWORK");
+                        Log.i(TAG, "CMD_STOP_NETWORK");
                     }
-                    // TODO: Call mLowpanInterface.setEnabled(false)?
+                    try {
+                        mLowpanInterface.setEnabled(false);
+                    } catch (LowpanException | LowpanRuntimeException x) {
+                        Log.e(TAG, "Exception while disabling: " + x);
+                        transitionTo(mFaultState);
+                        return HANDLED;
+                    }
                     break;
 
                 case CMD_STATE_CHANGE:
@@ -267,7 +279,13 @@ class LowpanInterfaceTracker extends StateMachine {
                             Log.i(TAG, "UNWANTED.");
                         }
 
-                        // TODO: Figure out how to properly handle this.
+                        try {
+                            mLowpanInterface.setEnabled(false);
+                        } catch (LowpanException | LowpanRuntimeException x) {
+                            Log.e(TAG, "Exception while disabling: " + x);
+                            transitionTo(mFaultState);
+                            return HANDLED;
+                        }
 
                         shutdownNetworkAgent();
                     }
