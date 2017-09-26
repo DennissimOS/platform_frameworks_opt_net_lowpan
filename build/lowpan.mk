@@ -13,5 +13,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-$(call inherit-product-if-exists, frameworks/opt/net/lowpan/product/lowpan-service.mk)
-$(call inherit-product-if-exists, frameworks/opt/net/lowpan/product/wpantund.mk)
+include frameworks/opt/net/lowpan/build/lowpan-service.mk
+include frameworks/opt/net/lowpan/build/wpantund.mk

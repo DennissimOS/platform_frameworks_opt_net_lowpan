@@ -14,7 +14,7 @@
 # limitations under the License.
 
 PRODUCT_COPY_FILES += \
-    $(call add-to-product-copy-files-if-exists,frameworks/native/data/etc/android.hardware.lowpan.xml:system/etc/permissions/android.hardware.lowpan.xml)
+    frameworks/native/data/etc/android.hardware.lowpan.xml:system/etc/permissions/android.hardware.lowpan.xml
 
 PRODUCT_SYSTEM_SERVER_JARS += \
     lowpan-service
