@@ -20,6 +20,9 @@
 
 #include <unistd.h>
 
+#include <mutex>
+#include <condition_variable>
+
 #include <hidl/HidlTransportSupport.h>
 #include <hidl/ServiceManagement.h>
 #include <hidl/Status.h>
@@ -54,10 +57,21 @@ struct LowpanDeathRecipient : hidl_death_recipient {
 
 struct LowpanDeviceCallback : public ILowpanDeviceCallback {
     int mFd;
+    std::mutex mMutex;
+    std::condition_variable mConditionVariable;
+    int mOpenError;
     static const uint32_t kMaxFrameSize = LOWPAN_HDLC_ADAPTER_MAX_FRAME_SIZE;
 public:
-    LowpanDeviceCallback(int fd): mFd(fd) { }
+    LowpanDeviceCallback(int fd): mFd(fd), mOpenError(-1) {}
     virtual ~LowpanDeviceCallback() = default;
+
+    int waitForOpenStatus() {
+        std::unique_lock<std::mutex> lock(mMutex);
+        if (mOpenError == -1) {
+            mConditionVariable.wait(lock);
+        }
+        return mOpenError;
+    }
 
     Return<void> onReceiveFrame(const hidl_vec<uint8_t>& data)  override {
         if (data.size() > kMaxFrameSize) {
@@ -84,6 +98,8 @@ public:
 
         buffer[bufferIndex++] = HDLC_BYTE_FLAG;
 
+        std::unique_lock<std::mutex> lock(mMutex);
+
         if (write(mFd, buffer, bufferIndex) != bufferIndex) {
             ALOGE("IOFAIL: write: %s (%d)", strerror(errno), errno);
             exit(EXIT_FAILURE);
@@ -93,13 +109,20 @@ public:
     }
 
     Return<void> onEvent(LowpanEvent event, LowpanStatus status)  override {
+        std::unique_lock<std::mutex> lock(mMutex);
+
         switch (event) {
         case LowpanEvent::OPENED:
+            if (mOpenError == -1) {
+                mOpenError = 0;
+                mConditionVariable.notify_all();
+            }
             ALOGI("Device opened");
             break;
 
         case LowpanEvent::CLOSED:
             ALOGI("Device closed");
+            exit(EXIT_SUCCESS);
             break;
 
         case LowpanEvent::RESET:
@@ -107,6 +130,10 @@ public:
             break;
 
         case LowpanEvent::ERROR:
+            if (mOpenError == -1) {
+                mOpenError = int(status);
+                mConditionVariable.notify_all();
+            }
             switch (status) {
             case LowpanStatus::IOFAIL:
                 ALOGE("IOFAIL: Input/Output error from device. Terminating.");
@@ -137,10 +164,18 @@ class ReadThread : public Thread {
     int mBufferIndex;
     bool mUnescapeNextByte;
     uint16_t mFcs;
+    sp<LowpanDeviceCallback> mCallback;
 
 public:
-    ReadThread(sp<ILowpanDevice> service, int fd):
-            Thread(false /*canCallJava*/), kReadThreadBufferSize(service->getMaxFrameSize()), mService(service), mFd(fd), mBufferIndex(0), mUnescapeNextByte(false),mFcs(kHdlcCrcResetValue) {
+    ReadThread(sp<ILowpanDevice> service, int fd, sp<LowpanDeviceCallback> callback):
+            Thread(false /*canCallJava*/),
+            kReadThreadBufferSize(service->getMaxFrameSize()),
+            mService(service),
+            mFd(fd),
+            mBufferIndex(0),
+            mUnescapeNextByte(false),
+            mFcs(kHdlcCrcResetValue),
+            mCallback(callback) {
         if (kReadThreadBufferSize < 16) {
             ALOGE("Device returned bad max frame size: %d bytes", kReadThreadBufferSize);
             exit(EXIT_FAILURE);
@@ -156,6 +191,11 @@ private:
 
     bool threadLoop() override {
         uint8_t buffer[LOWPAN_HDLC_ADAPTER_MAX_FRAME_SIZE];
+
+        if (int error = mCallback->waitForOpenStatus()) {
+            ALOGE("Call to `open()` failed: %d", error);
+            exit(EXIT_FAILURE);
+        }
 
         while (!exitPending()) {
             ssize_t bytesRead = read(mFd, buffer, sizeof(buffer));
@@ -250,7 +290,7 @@ int main(int argc, char* argv []) {
 
     configureRpcThreadpool(1, true /* callerWillJoin */);
 
-    sp<ILowpanDeviceCallback> callback = new LowpanDeviceCallback(STDOUT_FILENO);
+    sp<LowpanDeviceCallback> callback = new LowpanDeviceCallback(STDOUT_FILENO);
 
     {
         auto status = service->open(callback);
@@ -267,7 +307,7 @@ int main(int argc, char* argv []) {
         }
     }
 
-    sp<Thread> readThread = new ReadThread(service, STDIN_FILENO);
+    sp<Thread> readThread = new ReadThread(service, STDIN_FILENO, callback);
 
     readThread->run("ReadThread");
 
