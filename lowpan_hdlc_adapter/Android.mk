@@ -16,6 +16,7 @@
 
 LOCAL_PATH:= $(call my-dir)
 
+ifeq ($(LOWPAN_HAL_ENABLED), 1)
 include $(CLEAR_VARS)
 LOCAL_MODULE := lowpan_hdlc_adapter
 LOCAL_MODULE_TAGS := optional
@@ -37,3 +38,4 @@ LOCAL_SHARED_LIBRARIES += \
 	android.hardware.lowpan@1.0
 
 include $(BUILD_EXECUTABLE)
+endif
