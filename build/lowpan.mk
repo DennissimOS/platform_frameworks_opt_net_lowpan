@@ -13,5 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-PRODUCT_PACKAGES += \
-    wpantund
+include frameworks/opt/net/lowpan/build/lowpan-service.mk
+include frameworks/opt/net/lowpan/build/lowpan-hal-default.mk
+include frameworks/opt/net/lowpan/build/wpantund.mk

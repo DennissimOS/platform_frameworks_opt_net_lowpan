@@ -13,13 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-PRODUCT_COPY_FILES += \
-    $(call add-to-product-copy-files-if-exists,frameworks/native/data/etc/android.hardware.lowpan.xml:system/etc/permissions/android.hardware.lowpan.xml)
+PRODUCT_PACKAGES += \
+    wpantund
 
-PRODUCT_SYSTEM_SERVER_JARS += \
-    lowpan-service
+PRODUCT_COPY_FILES += \
+    frameworks/opt/net/lowpan/build/wpantund.rc:system/etc/init/wpantund.rc
 
 PRODUCT_PACKAGES += \
-    lowpan-service \
-    lowpanctl
-
+	lowpan_hdlc_adapter
