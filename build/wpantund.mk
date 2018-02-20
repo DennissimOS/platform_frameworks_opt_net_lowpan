@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-LOWPAN_HAL_ENABLED = 1
+LOWPAN_HAL_ENABLED := true
 
 PRODUCT_PACKAGES += \
     wpantund
