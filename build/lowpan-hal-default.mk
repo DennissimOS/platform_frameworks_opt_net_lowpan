@@ -14,4 +14,5 @@
 # limitations under the License.
 
 PRODUCT_PACKAGES += \
-    wpantund
+    android.hardware.lowpan@1.0-service
+
