@@ -16,7 +16,7 @@
 
 LOCAL_PATH:= $(call my-dir)
 
-ifeq ($(LOWPAN_HAL_ENABLED), 1)
+ifeq ($(LOWPAN_HAL_ENABLED),true)
 include $(CLEAR_VARS)
 LOCAL_MODULE := lowpan_hdlc_adapter
 LOCAL_MODULE_TAGS := optional
